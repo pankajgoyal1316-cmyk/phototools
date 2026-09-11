@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Update the sitemap URL below when the final domain is configured
+Sitemap: https://phototools.app/sitemap.xml
