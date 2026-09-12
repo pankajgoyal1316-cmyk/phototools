@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://phototools-6gh.pages.dev/sitemap.xml
