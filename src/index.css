@@ -7,11 +7,11 @@
     --color-bg: 250 250 252;
     --color-surface: 255 255 255;
     --color-text: 15 23 42;
-    --color-muted: 100 116 139;
+    --color-muted: 71 85 105;
     --color-border: 226 232 240;
-    --color-primary: 14 165 233;
+    --color-primary: 2 132 199;
     --color-primary-hover: 2 132 199;
-    --color-accent: 16 185 129;
+    --color-accent: 4 120 87;
   }
 
   .dark {
@@ -115,6 +115,18 @@
   }
   .btn-ghost:hover {
     background-color: rgb(var(--color-border) / 0.5);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 

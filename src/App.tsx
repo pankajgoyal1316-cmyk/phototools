@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, type ChangeEvent, type ReactNode } from 'react';
+import { useRef, useState, useEffect, useMemo, type ChangeEvent, type ReactNode } from 'react';
 import {
   ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Maximize2, MousePointer2, Plus, RefreshCw, Scissors, Send,
   Shield, Sparkles, Upload, Wand2, X, Zap, Download, SlidersHorizontal, Lock, Mail, MessageCircle,
@@ -8,10 +8,10 @@ import { Link, useRouter } from '@/lib/router';
 import { useSeo, buildJsonLd, SITE_URL } from '@/lib/seo';
 import {
   loadImage, getImageDimensions, downloadBlob, formatBytes,
-  pxToUnit, unitToPx, compressToTargetSize,
+  pxToUnit, unitToPx,
 } from '@/lib/imageUtils';
 import {
-  downloadImagePdf, compressPdf, type PdfPageItem, type ImageFilter,
+  type PdfPageItem, type ImageFilter,
 } from '@/lib/pdfUtils';
 
 interface ToolCardProps { icon: ReactNode; title: string; description: string; to: string; color: string; badge?: string; }
@@ -106,7 +106,7 @@ function Home() {
       </div>
     </section>
     <section className="bg-surface/60 border-y border-app/40"><div className="max-w-3xl mx-auto px-4 sm:px-6 py-16"><h2 className="text-2xl sm:text-3xl font-bold text-app mb-6 text-center">What is PhotoTools?</h2><div className="space-y-4 text-sm text-muted leading-relaxed"><p>PhotoTools is a collection of free, browser-based image utilities that help you handle everyday photo tasks without installing software or creating an account. Every tool runs entirely on your device — your images are never uploaded to a server.</p><p>Whether you need to resize a photo for an online form, compress an image to meet a file-size limit, convert multiple images into a single PDF, or remove the background from a product photo, PhotoTools has a focused tool for the job. There are no watermarks, no sign-ups, and no hidden costs.</p></div></div></section>
-    <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16"><h2 className="text-2xl sm:text-3xl font-bold text-app mb-8 text-center">Our tools</h2><div className="space-y-6">{[[Maximize2, 'Resize & Compress', 'Resize images by pixels, centimeters, or inches and compress them to an exact target file size in KB or MB. Perfect for online forms, email attachments, and web uploads.', '/resize'], [PenIcon, 'Signature Resizer', 'Resize signature images to precise pixel dimensions and file-size limits for government forms, job applications, and passport documents.', '/signature'], [FileText, 'PDF Tools', 'Convert JPG, PNG, and WebP images into a single PDF document with optional filters, or compress an existing PDF to a smaller file size.', '/pdf'], [Scissors, 'Remove Background', 'Remove the background from any photo using on-device AI. Replace it with a solid color, custom image, or keep it transparent.', '/background']].map(([Icon, name, desc, to], i) => <div key={i as number} className="card-surface p-5 flex gap-4 items-start"><div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><Icon /></div><div><h3 className="font-bold text-app text-sm mb-1">{name as string}</h3><p className="text-sm text-muted leading-relaxed mb-2">{desc as string}</p><Link to={to as string} className="text-sm text-primary font-semibold hover:underline inline-flex items-center gap-1">Learn more <ArrowRight className="w-3.5 h-3.5" /></Link></div></div>)}</div></section>
+    <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16"><h2 className="text-2xl sm:text-3xl font-bold text-app mb-8 text-center">Our tools</h2><div className="space-y-6">{[[Maximize2, 'Resize & Compress', 'Resize images by pixels, centimeters, or inches and compress them to an exact target file size in KB or MB. Perfect for online forms, email attachments, and web uploads.', '/resize'], [PenIcon, 'Signature Resizer', 'Resize signature images to precise pixel dimensions and file-size limits for government forms, job applications, and passport documents.', '/signature'], [FileText, 'PDF Tools', 'Convert JPG, PNG, and WebP images into a single PDF document with optional filters, or compress an existing PDF to a smaller file size.', '/pdf'], [Scissors, 'Remove Background', 'Remove the background from any photo using on-device AI. Replace it with a solid color, custom image, or keep it transparent.', '/background']].map(([Icon, name, desc, to], i) => <div key={i as number} className="card-surface p-5 flex gap-4 items-start"><div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><Icon /></div><div><h3 className="font-bold text-app text-sm mb-1">{name as string}</h3><p className="text-sm text-muted leading-relaxed mb-2">{desc as string}</p><Link to={to as string} aria-label={`Learn more about ${name as string}`} className="text-sm text-primary font-semibold hover:underline inline-flex items-center gap-1">Learn more <ArrowRight className="w-3.5 h-3.5" /></Link></div></div>)}</div></section>
     <section className="bg-surface/60 border-y border-app/40"><div className="max-w-3xl mx-auto px-4 sm:px-6 py-16"><h2 className="text-2xl sm:text-3xl font-bold text-app mb-6 text-center">Privacy by design</h2><div className="space-y-4 text-sm text-muted leading-relaxed"><p>PhotoTools is built around a simple privacy principle: your images should never leave your device. All processing — resizing, compressing, PDF conversion, and even AI background removal — happens locally in your browser using HTML5 Canvas, the File API, and WebAssembly.</p><p>There are no accounts, no server-side storage of your files, and no tracking of your image content. The only network requests the website makes are for loading the page itself, serving advertisements (if enabled), and downloading the AI model for background removal on first use.</p><Link to="/privacy" className="text-sm text-primary font-semibold hover:underline inline-flex items-center gap-1">Read our full privacy policy <ArrowRight className="w-3.5 h-3.5" /></Link></div></div></section>
     <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16"><h2 className="text-2xl sm:text-3xl font-bold text-app mb-6 text-center">Who uses PhotoTools?</h2><div className="grid sm:grid-cols-2 gap-4">{[['Students & applicants', 'Resize photos and signatures to exact specifications for college applications, government forms, and job portals.'], ['Online sellers', 'Compress product photos for faster page loads and remove backgrounds for clean marketplace listings.'], ['Office workers', 'Convert multiple scanned documents into a single PDF and compress large PDFs for email attachments.'], ['Casual users', 'Quickly resize a photo for a social media profile or compress an image to send via messaging apps.']].map(([title, desc], i) => <div key={i} className="card-surface p-5"><h3 className="font-bold text-app text-sm mb-2">{title}</h3><p className="text-sm text-muted leading-relaxed">{desc}</p></div>)}</div></section>
   </>;
@@ -122,7 +122,7 @@ function UploadZone({ onFiles, multiple = false, label = 'Drop your image here',
     const filtered = acceptType === 'pdf' ? arr.filter(f => f.type === 'application/pdf') : arr.filter(f => f.type.startsWith('image/'));
     if (filtered.length) onFiles(filtered);
   };
-  return <div role="button" tabIndex={0} aria-label={label} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); handle(e.dataTransfer.files); }} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }} className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${dragging ? 'border-primary bg-primary/10 scale-[1.01]' : 'border-app/70 hover:border-primary/60 hover:bg-primary/5'}`}><input ref={inputRef} type="file" accept={accept} multiple={multiple} className="hidden" onChange={(e) => handle(e.target.files)} /><div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dragging ? 'bg-primary text-white' : 'bg-primary/10 text-primary'} transition-colors`}><Upload className="w-7 h-7" /></div><h3 className="font-semibold text-app text-lg">{label}</h3><p className="text-sm text-muted mt-2">or click to browse · {acceptType === 'pdf' ? 'PDF files' : 'JPG, PNG, WebP'}</p></div>;
+  return <div role="button" tabIndex={0} aria-label={label} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); handle(e.dataTransfer.files); }} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }} className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${dragging ? 'border-primary bg-primary/10 scale-[1.01]' : 'border-app/70 hover:border-primary/60 hover:bg-primary/5'}`}><input ref={inputRef} type="file" accept={accept} multiple={multiple} className="sr-only" onChange={(e) => handle(e.target.files)} /><div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dragging ? 'bg-primary text-white' : 'bg-primary/10 text-primary'} transition-colors`}><Upload className="w-7 h-7" /></div><h2 className="font-semibold text-app text-lg">{label}</h2><p className="text-sm text-muted mt-2">or click to browse · {acceptType === 'pdf' ? 'PDF files' : 'JPG, PNG, WebP'}</p></div>;
 }
 
 function ToolShell({ title, subtitle, icon, seoTitle, seoDescription, seoPath, children, jsonLd }: { title: string; subtitle: string; icon: ReactNode; seoTitle: string; seoDescription: string; seoPath: string; children: ReactNode; jsonLd?: object | object[] }) {
@@ -199,7 +199,7 @@ function ResizeTool() {
     setHeight(dims.height);
   };
 
-  const aspectRatio = height > 0 ? width / height : 1;
+  const aspectRatio = useMemo(() => height > 0 ? width / height : 1, [width, height]);
 
   const updateWidth = (v: number) => {
     setWidth(v);
@@ -211,8 +211,8 @@ function ResizeTool() {
     if (locked) setWidth(Math.round(v * aspectRatio));
   };
 
-  const displayWidth = pxToUnit(width, unit);
-  const displayHeight = pxToUnit(height, unit);
+  const displayWidth = useMemo(() => pxToUnit(width, unit), [width, unit]);
+  const displayHeight = useMemo(() => pxToUnit(height, unit), [height, unit]);
 
   const process = async () => {
     if (!file) return;
@@ -224,6 +224,7 @@ function ResizeTool() {
 
       let blob: Blob;
       if (targetBytes > 0) {
+        const { compressToTargetSize } = await import('@/lib/imageUtils');
         blob = await compressToTargetSize(img, width, height, targetBytes, 'image/jpeg');
       } else {
         const canvas = document.createElement('canvas');
@@ -348,8 +349,8 @@ function SignatureTool() {
     setTargetUnit(presets[p].unit);
   };
 
-  const displayWidth = pxToUnit(width, unit);
-  const displayHeight = pxToUnit(height, unit);
+  const displayWidth = useMemo(() => pxToUnit(width, unit), [width, unit]);
+  const displayHeight = useMemo(() => pxToUnit(height, unit), [height, unit]);
 
   const download = async () => {
     if (!url || !file) return;
@@ -362,6 +363,7 @@ function SignatureTool() {
 
       let blob: Blob;
       if (targetBytes > 0) {
+        const { compressToTargetSize } = await import('@/lib/imageUtils');
         blob = await compressToTargetSize(img, width, height, targetBytes, 'image/jpeg');
       } else {
         const canvas = document.createElement('canvas');
@@ -472,6 +474,7 @@ function ImageToPdfTool() {
     setGenerating(true);
     setDone(false);
     try {
+      const { downloadImagePdf } = await import('@/lib/pdfUtils');
       await downloadImagePdf(items, filter, 'phototools-document.pdf', (current, total) => {
         setProgress(`Processing page ${current} of ${total}...`);
       });
@@ -489,9 +492,9 @@ function ImageToPdfTool() {
       <div>
         <div className="card-surface p-5 mb-4">
           <div className="flex items-center justify-between mb-5">
-            <div><h3 className="font-bold text-app">Your pages <span className="text-muted font-normal">({items.length})</span></h3><p className="text-xs text-muted mt-1">Use arrows to reorder pages</p></div>
+            <div><h2 className="font-bold text-app text-lg">Your pages <span className="text-muted font-normal">({items.length})</span></h2><p className="text-xs text-muted mt-1">Use arrows to reorder pages</p></div>
             <button onClick={() => document.querySelector<HTMLInputElement>('#pdf-add')?.click()} className="btn-ghost text-primary text-sm"><Plus className="w-4 h-4" /> Add more</button>
-            <input id="pdf-add" type="file" multiple accept="image/*" className="hidden" onChange={(e) => add(Array.from(e.target.files || []))} />
+            <input id="pdf-add" type="file" multiple accept="image/*" className="sr-only" onChange={(e) => add(Array.from(e.target.files || []))} />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {items.map((item, i) => (
@@ -551,6 +554,7 @@ function PdfCompressTool() {
     setDone(false);
     try {
       const targetBytes = targetSize ? (targetUnit === 'MB' ? parseFloat(targetSize) * 1024 * 1024 : parseFloat(targetSize) * 1024) : file.size * 0.5;
+      const { compressPdf } = await import('@/lib/pdfUtils');
       const blob = await compressPdf(file, targetBytes, (current, total) => {
         setProgress(`Processing page ${current} of ${total}...`);
       });
@@ -621,6 +625,16 @@ async function downscaleForBgRemoval(file: File, maxDim: number): Promise<Blob> 
   } finally {
     URL.revokeObjectURL(objUrl);
   }
+}
+
+function getBgRemovalMaxDims(): number[] {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const memory = nav.deviceMemory;
+  if (memory !== undefined && memory >= 4) return [1200, 768, 512];
+  if (memory !== undefined && memory < 4) return [768, 512];
+  if (!isMobile) return [1200, 768, 512];
+  return [768, 512];
 }
 
 function BackgroundTool() {
@@ -696,7 +710,7 @@ function BackgroundTool() {
     setErrorMsg('');
     setAiProgress('Preparing image...');
 
-    const maxDims = [768, 512];
+    const maxDims = getBgRemovalMaxDims();
     let succeeded = false;
     let lastErr: unknown = null;
     try {
@@ -705,10 +719,10 @@ function BackgroundTool() {
         try {
           const input = await downscaleForBgRemoval(file, maxDim);
           if (myJobId !== jobIdRef.current) break;
-          if (maxDim < 768) {
-            setAiProgress('Retrying with smaller image...');
-          } else {
+          if (maxDim === maxDims[0]) {
             setAiProgress('Loading AI model...');
+          } else {
+            setAiProgress('Retrying with smaller image...');
           }
           const mod = await getBgRemovalModule();
           if (myJobId !== jobIdRef.current) break;
@@ -847,7 +861,7 @@ function BackgroundTool() {
     {!file ? <><div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mb-5 flex gap-3 text-sm text-emerald-700 dark:text-emerald-300"><Shield className="w-5 h-5 shrink-0" /><span><strong>Privacy-first processing.</strong> Everything happens entirely on your device. No images are uploaded.</span></div><UploadZone onFiles={load} label="Drop an image to remove its background" /></> : (
       <div className="grid lg:grid-cols-[1fr_280px] gap-6">
         <div className="card-surface p-5">
-          <div className="flex items-center justify-between mb-5"><div><h3 className="font-bold text-app">Background studio</h3><p className="text-xs text-muted mt-1">{removed ? 'Background removed — apply a new backdrop below' : 'Remove the background, then customize'}</p></div><button type="button" onClick={resetAll} aria-label="Remove image" className="text-muted hover:text-rose-500"><X className="w-4 h-4" /></button></div>
+          <div className="flex items-center justify-between mb-5"><div><h2 className="font-bold text-app text-lg">Background studio</h2><p className="text-xs text-muted mt-1">{removed ? 'Background removed — apply a new backdrop below' : 'Remove the background, then customize'}</p></div><button type="button" onClick={resetAll} aria-label="Remove image" className="text-muted hover:text-rose-500"><X className="w-4 h-4" /></button></div>
           <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-[linear-gradient(45deg,#e2e8f0_25%,transparent_25%),linear-gradient(-45deg,#e2e8f0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e2e8f0_75%),linear-gradient(-45deg,transparent_75%,#e2e8f0_75%)] bg-[length:28px_28px] bg-[position:0_0,0_14px,14px_-14px,-14px_0px] flex items-center justify-center">
             {!removed ? <img src={url} alt="Background editor" className="max-w-full max-h-full object-contain" /> : <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" />}
           </div>
@@ -868,7 +882,7 @@ function BackgroundTool() {
                   <input type="color" value={bgColor} onChange={(e) => applyBgColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer" />
                   <span className="text-sm text-muted">Custom color</span>
                 </div>
-                <label className="w-full text-left px-3 py-2.5 rounded-lg text-sm bg-app text-muted hover:text-app cursor-pointer flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Upload background image<input type="file" accept="image/*" className="hidden" onChange={handleBgImageUpload} /></label>
+                <label className="w-full text-left px-3 py-2.5 rounded-lg text-sm bg-app text-muted hover:text-app cursor-pointer flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Upload background image<input type="file" accept="image/*" className="sr-only" onChange={handleBgImageUpload} /></label>
               </div>
             </div>
             {bgType !== 'transparent' && <p className="text-xs text-accent flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Saved as your default background</p>}
@@ -881,9 +895,9 @@ function BackgroundTool() {
       <InfoSection title="How background removal works"><p>PhotoTools uses an AI model called IS-Net (Image Segmentation Network) that runs directly in your browser via WebAssembly. The model analyzes the image and identifies the foreground subject — a person, product, or object — then produces a transparency mask that separates the subject from the background.</p><p>On first use, the model file (about 40 MB) is downloaded and cached by your browser. Subsequent uses load from cache, making them much faster. All processing happens on your device CPU.</p></InfoSection>
       <InfoSection title="Transparent PNG and background replacement"><p>After removing the background, you can download the result as a transparent PNG, or apply a new background. Choose from preset colors, a custom color, or upload your own background image. The result is composited on a canvas and downloaded as a PNG file.</p></InfoSection>
       <InfoSection title="Supported use cases"><p>Creating product photos with clean white backgrounds for e-commerce, removing backgrounds from portraits for ID photos, preparing images for presentations with custom colored backgrounds, and creating transparent overlays for graphic design projects.</p></InfoSection>
-      <InfoSection title="Limitations"><p>The AI model works best with clear foreground subjects and distinct backgrounds. Very complex images with multiple subjects, hair or fur with fine detail, or backgrounds similar in color to the subject may produce less precise results. Large images are automatically downscaled to 1024px for processing, which may slightly reduce edge detail on very high-resolution photos.</p></InfoSection>
+      <InfoSection title="Limitations"><p>The AI model works best with clear foreground subjects and distinct backgrounds. Very complex images with multiple subjects, hair or fur with fine detail, or backgrounds similar in color to the subject may produce less precise results. Large images are automatically optimized before processing — powerful devices can handle up to 1200px, while lower-memory devices use a smaller size for stability. This may slightly reduce edge detail on very high-resolution photos.</p></InfoSection>
       <InfoSection title="Privacy"><p>Background removal runs entirely on your device. The AI model is downloaded once and cached by your browser. Your images are never uploaded to any server. The only network request is the initial model download.</p></InfoSection>
-      <FaqList faqs={[['Why does the first run take longer?', 'The first time you use background removal, the browser downloads the AI model file (about 40 MB). This is cached for future use, so subsequent runs are much faster.'], ['Why is the result blurry around the edges?', 'The model downscales large images to 1024px for processing. If your original image is very high resolution, the edges may lose some detail. For best results, use images that are already close to 1024px on the longest edge.'], ['Can I use a custom background image?', 'Yes. After removing the background, upload any image as a new background. The tool will composite your subject onto the uploaded background.'], ['Does background removal work on mobile?', 'Yes, but it may be slower on devices with limited RAM. The model requires about 40 MB of memory to run. If your device struggles, try using a smaller image.']]}/>
+      <FaqList faqs={[['Why does the first run take longer?', 'The first time you use background removal, the browser downloads the AI model file (about 40 MB). This is cached for future use, so subsequent runs are much faster.'], ['Why is the result blurry around the edges?', 'Large images are automatically optimized before processing — up to 1200px on powerful devices, or smaller on lower-memory devices for stability. If your original image is very high resolution, the edges may lose some detail. For best results, use images that are already close to 1200px on the longest edge.'], ['Can I use a custom background image?', 'Yes. After removing the background, upload any image as a new background. The tool will composite your subject onto the uploaded background.'], ['Does background removal work on mobile?', 'Yes, but it may be slower on devices with limited RAM. The model requires about 40 MB of memory to run. If your device struggles, try using a smaller image.']]}/>
       <RelatedTools links={[{ label: 'Resize & Compress', to: '/resize', icon: <Maximize2 className="w-4 h-4" /> }, { label: 'Signature Resizer', to: '/signature', icon: <PenIcon /> }, { label: 'Images to PDF', to: '/pdf', icon: <FileText className="w-4 h-4" /> }]} />
   </ToolShell>;
 }
