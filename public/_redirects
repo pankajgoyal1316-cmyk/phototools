@@ -2,4 +2,12 @@
 /robots.txt  /robots.txt  200
 /favicon.svg  /favicon.svg  200
 /og-image.svg  /og-image.svg  200
-/*    /index.html   200
+/resize       /resize/index.html       200
+/signature    /signature/index.html    200
+/pdf          /pdf/index.html          200
+/background   /background/index.html   200
+/about        /about/index.html        200
+/contact      /contact/index.html      200
+/privacy      /privacy/index.html      200
+/terms        /terms/index.html        200
+/*            /index.html             200

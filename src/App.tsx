@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useMemo, type ChangeEvent, type ReactNode } from 'react';
+import { useRef, useState, useEffect, useMemo, Component, type ChangeEvent, type ReactNode } from 'react';
 import {
   ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Maximize2, MousePointer2, Plus, RefreshCw, Scissors, Send,
   Shield, Sparkles, Upload, Wand2, X, Zap, Download, SlidersHorizontal, Lock, Mail, MessageCircle,
@@ -122,7 +122,7 @@ function UploadZone({ onFiles, multiple = false, label = 'Drop your image here',
     const filtered = acceptType === 'pdf' ? arr.filter(f => f.type === 'application/pdf') : arr.filter(f => f.type.startsWith('image/'));
     if (filtered.length) onFiles(filtered);
   };
-  return <div role="button" tabIndex={0} aria-label={label} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); handle(e.dataTransfer.files); }} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }} className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${dragging ? 'border-primary bg-primary/10 scale-[1.01]' : 'border-app/70 hover:border-primary/60 hover:bg-primary/5'}`}><input ref={inputRef} type="file" accept={accept} multiple={multiple} className="sr-only" onChange={(e) => handle(e.target.files)} /><div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dragging ? 'bg-primary text-white' : 'bg-primary/10 text-primary'} transition-colors`}><Upload className="w-7 h-7" /></div><h2 className="font-semibold text-app text-lg">{label}</h2><p className="text-sm text-muted mt-2">or click to browse · {acceptType === 'pdf' ? 'PDF files' : 'JPG, PNG, WebP'}</p></div>;
+  return <div role="button" tabIndex={0} aria-label={label} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); handle(e.dataTransfer.files); }} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }} className={`border-2 border-dashed rounded-2xl p-10 sm:p-14 text-center cursor-pointer transition-all ${dragging ? 'border-primary bg-primary/10 scale-[1.01]' : 'border-app/70 hover:border-primary/60 hover:bg-primary/5'}`}><input ref={inputRef} type="file" accept={accept} multiple={multiple} className="sr-only" onChange={(e) => { handle(e.target.files); e.target.value = ''; }} /><div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dragging ? 'bg-primary text-white' : 'bg-primary/10 text-primary'} transition-colors`}><Upload className="w-7 h-7" /></div><h2 className="font-semibold text-app text-lg">{label}</h2><p className="text-sm text-muted mt-2">or click to browse · {acceptType === 'pdf' ? 'PDF files' : 'JPG, PNG, WebP'}</p></div>;
 }
 
 function ToolShell({ title, subtitle, icon, seoTitle, seoDescription, seoPath, children, jsonLd }: { title: string; subtitle: string; icon: ReactNode; seoTitle: string; seoDescription: string; seoPath: string; children: ReactNode; jsonLd?: object | object[] }) {
@@ -599,15 +599,27 @@ function PdfCompressTool() {
 let bgRemovalModulePromise: Promise<typeof import('@imgly/background-removal')> | null = null;
 function getBgRemovalModule() {
   if (!bgRemovalModulePromise) {
-    bgRemovalModulePromise = import('@imgly/background-removal');
+    bgRemovalModulePromise = import('@imgly/background-removal').catch((err) => {
+      bgRemovalModulePromise = null;
+      throw err;
+    });
   }
   return bgRemovalModulePromise;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('timeout')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
 async function downscaleForBgRemoval(file: File, maxDim: number): Promise<Blob> {
   const objUrl = URL.createObjectURL(file);
+  let img: HTMLImageElement | null = null;
   try {
-    const img = await loadImage(objUrl);
+    img = await loadImage(objUrl);
     const longest = Math.max(img.naturalWidth, img.naturalHeight);
     if (longest <= maxDim) return file;
     const scale = maxDim / longest;
@@ -617,12 +629,15 @@ async function downscaleForBgRemoval(file: File, maxDim: number): Promise<Blob> 
     const ctx = canvas.getContext('2d');
     if (!ctx) return file;
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((resolve) => {
+    const blob = await new Promise<Blob>((resolve) => {
       canvas.toBlob((b) => resolve(b || file), 'image/jpeg', 0.92);
     });
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return blob;
   } catch {
     return file;
   } finally {
+    if (img) img.src = '';
     URL.revokeObjectURL(objUrl);
   }
 }
@@ -727,7 +742,7 @@ function BackgroundTool() {
           const mod = await getBgRemovalModule();
           if (myJobId !== jobIdRef.current) break;
           setAiProgress('AI is processing your image...');
-          const result = await mod.removeBackground(input, {
+          const result = await withTimeout(mod.removeBackground(input, {
             model: 'isnet_quint8',
             device: 'cpu',
             output: { format: 'image/png' },
@@ -739,7 +754,7 @@ function BackgroundTool() {
                 setAiProgress('AI is processing your image...');
               }
             },
-          });
+          }), 180000);
           if (myJobId !== jobIdRef.current) break;
           if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
           const newUrl = URL.createObjectURL(result as Blob);
@@ -754,9 +769,14 @@ function BackgroundTool() {
         }
       }
       if (!succeeded && myJobId === jobIdRef.current) {
-        const msg = lastErr instanceof Error && (lastErr.message.includes('fetch') || lastErr.message.includes('network'))
-          ? 'Background removal could not be loaded. Please check your connection and try again.'
-          : 'Background removal could not process this image. Please try a smaller image.';
+        let msg: string;
+        if (lastErr instanceof Error && lastErr.message === 'timeout') {
+          msg = 'Background removal is taking too long. Please try a smaller image or try again.';
+        } else if (lastErr instanceof Error && (lastErr.message.includes('fetch') || lastErr.message.includes('network'))) {
+          msg = 'Background removal could not be loaded. Please check your connection and try again.';
+        } else {
+          msg = 'Background removal could not process this image. Please try a smaller image.';
+        }
         setErrorMsg(msg);
       }
     } finally {
@@ -811,6 +831,7 @@ function BackgroundTool() {
     setBgImageUrl(newBgUrl);
     setBgType('image');
     saveBgSettings('image', bgColor);
+    e.target.value = '';
   };
 
   const applyBgColor = (color: string) => {
@@ -948,6 +969,27 @@ function NotFound() {
   </div>;
 }
 
+class BgToolErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state: { hasError: boolean } = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { console.error('Background tool error:', error); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+          <div className="p-6 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
+            <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-3" />
+            <h2 className="text-lg font-bold text-app mb-2">Background removal failed</h2>
+            <p className="text-sm text-muted mb-4">Something went wrong during processing. Please try again.</p>
+            <button className="btn-primary" onClick={() => this.setState({ hasError: false })}>Try again</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const { route } = useRouter();
   const page = route.split('?')[0];
@@ -956,7 +998,7 @@ function App() {
   else if (page === '/resize') content = <ResizeTool />;
   else if (page === '/signature') content = <SignatureTool />;
   else if (page === '/pdf') content = <PdfTool />;
-  else if (page === '/background') content = <BackgroundTool />;
+  else if (page === '/background') content = <BgToolErrorBoundary><BackgroundTool /></BgToolErrorBoundary>;
   else if (page === '/about') content = <StaticPage type="about" />;
   else if (page === '/privacy') content = <StaticPage type="privacy" />;
   else if (page === '/terms') content = <StaticPage type="terms" />;
