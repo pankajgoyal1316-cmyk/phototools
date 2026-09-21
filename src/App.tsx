@@ -992,7 +992,7 @@ class BgToolErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 
 function App() {
   const { route } = useRouter();
-  const page = route.split('?')[0];
+  const page = route.split('?')[0].replace(/\/+$/, '') || '/';
   let content: ReactNode;
   if (page === '/') content = <Home />;
   else if (page === '/resize') content = <ResizeTool />;
