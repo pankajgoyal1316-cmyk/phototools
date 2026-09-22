@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Link, useRouter } from '@/lib/router';
 import { useSeo, buildJsonLd, SITE_URL } from '@/lib/seo';
+import { preloadModel, removeBackgroundPipeline, type BgRemovalProgress } from '@/lib/bgRemoval';
 import {
   loadImage, getImageDimensions, downloadBlob, formatBytes,
   pxToUnit, unitToPx,
@@ -184,6 +185,7 @@ function ResizeTool() {
   const [targetUnit, setTargetUnit] = useState('KB');
   const [outputInfo, setOutputInfo] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [downloadFormat, setDownloadFormat] = useState<'jpg' | 'png' | 'webp'>('jpg');
 
   const load = async (files: File[]) => {
     const f = files[0];
@@ -222,26 +224,32 @@ function ResizeTool() {
       const img = await loadImage(url);
       const targetBytes = targetSize ? (targetUnit === 'MB' ? parseFloat(targetSize) * 1024 * 1024 : parseFloat(targetSize) * 1024) : 0;
 
+      const mimeType = downloadFormat === 'png' ? 'image/png'
+        : downloadFormat === 'webp' ? 'image/webp'
+        : 'image/jpeg';
+
       let blob: Blob;
       if (targetBytes > 0) {
         const { compressToTargetSize } = await import('@/lib/imageUtils');
-        blob = await compressToTargetSize(img, width, height, targetBytes, 'image/jpeg');
+        blob = await compressToTargetSize(img, width, height, targetBytes, mimeType);
       } else {
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, width, height);
+          if (downloadFormat === 'jpg') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+          }
           ctx.drawImage(img, 0, 0, width, height);
         }
         blob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', quality / 100);
+          canvas.toBlob((b) => resolve(b || new Blob()), mimeType, quality / 100);
         });
       }
 
-      downloadBlob(blob, `phototools-${file.name.replace(/\.[^/.]+$/, '')}.jpg`);
+      downloadBlob(blob, `phototools-${file.name.replace(/\.[^/.]+$/, '')}.${downloadFormat}`);
       setOutputInfo(`Output: ${formatBytes(blob.size)}`);
       setDone(true);
     } catch (err) {
@@ -293,6 +301,14 @@ function ResizeTool() {
           </div>}
           {outputInfo && <div role="status" className="p-3 rounded-xl bg-accent/10 text-xs text-accent flex gap-2 items-center"><Check className="w-4 h-4 shrink-0" /> {outputInfo}</div>}
           {errorMsg && <div role="alert" className="p-3 rounded-xl bg-rose-500/10 text-xs text-rose-500 flex gap-2 items-center"><AlertCircle className="w-4 h-4 shrink-0" /> {errorMsg}</div>}
+          <div>
+            <label className="text-xs font-semibold text-muted mb-1.5 block">Download format</label>
+            <select value={downloadFormat} onChange={(e) => setDownloadFormat(e.target.value as 'jpg' | 'png' | 'webp')} className="input-field">
+              <option value="jpg">JPG</option>
+              <option value="png">PNG</option>
+              <option value="webp">WebP</option>
+            </select>
+          </div>
           <button onClick={process} disabled={processing} className="btn-primary w-full justify-center">
             {processing ? <RefreshCw className="w-4 h-4 animate-spin-slow" /> : done ? <Check className="w-4 h-4" /> : <Download className="w-4 h-4" />}
             {processing ? 'Processing...' : done ? 'Downloaded!' : 'Resize & Download'}
@@ -596,62 +612,6 @@ function PdfCompressTool() {
   </>;
 }
 
-let bgRemovalModulePromise: Promise<typeof import('@imgly/background-removal')> | null = null;
-function getBgRemovalModule() {
-  if (!bgRemovalModulePromise) {
-    bgRemovalModulePromise = import('@imgly/background-removal').catch((err) => {
-      bgRemovalModulePromise = null;
-      throw err;
-    });
-  }
-  return bgRemovalModulePromise;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error('timeout')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
-}
-
-async function downscaleForBgRemoval(file: File, maxDim: number): Promise<Blob> {
-  const objUrl = URL.createObjectURL(file);
-  let img: HTMLImageElement | null = null;
-  try {
-    img = await loadImage(objUrl);
-    const longest = Math.max(img.naturalWidth, img.naturalHeight);
-    if (longest <= maxDim) return file;
-    const scale = maxDim / longest;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(img.naturalWidth * scale);
-    canvas.height = Math.round(img.naturalHeight * scale);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return file;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((b) => resolve(b || file), 'image/jpeg', 0.92);
-    });
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    return blob;
-  } catch {
-    return file;
-  } finally {
-    if (img) img.src = '';
-    URL.revokeObjectURL(objUrl);
-  }
-}
-
-function getBgRemovalMaxDims(): number[] {
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const memory = nav.deviceMemory;
-  if (memory !== undefined && memory >= 4) return [1200, 768, 512];
-  if (memory !== undefined && memory < 4) return [768, 512];
-  if (!isMobile) return [1200, 768, 512];
-  return [768, 512];
-}
-
 function BackgroundTool() {
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState('');
@@ -663,6 +623,7 @@ function BackgroundTool() {
   const [resultUrl, setResultUrl] = useState('');
   const [aiProgress, setAiProgress] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [preparingModel, setPreparingModel] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const processingRef = useRef(false);
   const urlRef = useRef('');
@@ -684,6 +645,15 @@ function BackgroundTool() {
     const savedColor = localStorage.getItem('phototools-bg-color');
     if (saved === 'color' || saved === 'transparent' || saved === 'image') setBgType(saved);
     if (savedColor) setBgColor(savedColor);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreparingModel(true);
+    preloadModel()
+      .catch((err: unknown) => console.warn('Model preload skipped:', err))
+      .finally(() => { if (!cancelled) setPreparingModel(false); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => { urlRef.current = url; }, [url]);
@@ -725,62 +695,38 @@ function BackgroundTool() {
     setErrorMsg('');
     setAiProgress('Preparing image...');
 
-    const maxDims = getBgRemovalMaxDims();
-    let succeeded = false;
-    let lastErr: unknown = null;
+    const isStale = () => myJobId !== jobIdRef.current;
+
     try {
-      for (const maxDim of maxDims) {
-        if (myJobId !== jobIdRef.current) break;
-        try {
-          const input = await downscaleForBgRemoval(file, maxDim);
-          if (myJobId !== jobIdRef.current) break;
-          if (maxDim === maxDims[0]) {
-            setAiProgress('Loading AI model...');
-          } else {
-            setAiProgress('Retrying with smaller image...');
-          }
-          const mod = await getBgRemovalModule();
-          if (myJobId !== jobIdRef.current) break;
-          setAiProgress('AI is processing your image...');
-          const result = await withTimeout(mod.removeBackground(input, {
-            model: 'isnet_quint8',
-            device: 'cpu',
-            output: { format: 'image/png' },
-            progress: (key: string, current: number, total: number) => {
-              if (myJobId !== jobIdRef.current) return;
-              if (key.includes('download') && total > 0) {
-                setAiProgress(`Loading AI model... ${Math.round((current / total) * 100)}%`);
-              } else {
-                setAiProgress('AI is processing your image...');
-              }
-            },
-          }), 180000);
-          if (myJobId !== jobIdRef.current) break;
-          if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
-          const newUrl = URL.createObjectURL(result as Blob);
-          resultUrlRef.current = newUrl;
-          setResultUrl(newUrl);
-          setRemoved(true);
-          succeeded = true;
-          break;
-        } catch (err) {
-          console.error(`Background removal failed at maxDim=${maxDim}:`, err);
-          lastErr = err;
-        }
+      const result = await removeBackgroundPipeline(
+        file,
+        isStale,
+        (p: BgRemovalProgress) => {
+          if (!isStale()) setAiProgress(p.message);
+        },
+      );
+      if (!isStale()) {
+        if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
+        const newUrl = URL.createObjectURL(result.blob);
+        resultUrlRef.current = newUrl;
+        setResultUrl(newUrl);
+        setRemoved(true);
       }
-      if (!succeeded && myJobId === jobIdRef.current) {
-        let msg: string;
-        if (lastErr instanceof Error && lastErr.message === 'timeout') {
-          msg = 'Background removal is taking too long. Please try a smaller image or try again.';
-        } else if (lastErr instanceof Error && (lastErr.message.includes('fetch') || lastErr.message.includes('network'))) {
-          msg = 'Background removal could not be loaded. Please check your connection and try again.';
-        } else {
-          msg = 'Background removal could not process this image. Please try a smaller image.';
-        }
-        setErrorMsg(msg);
+    } catch (err) {
+      if (isStale()) return;
+      let msg: string;
+      if (err instanceof Error && err.message === 'timeout') {
+        msg = 'Background removal is taking too long. Please try a smaller image or try again.';
+      } else if (err instanceof Error && (err.message.includes('fetch') || err.message.includes('network'))) {
+        msg = 'Background removal could not be loaded. Please check your connection and try again.';
+      } else if (err instanceof Error && err.message === 'stale') {
+        return;
+      } else {
+        msg = 'Background removal could not process this image. Please try a smaller image.';
       }
+      setErrorMsg(msg);
     } finally {
-      if (myJobId === jobIdRef.current) {
+      if (!isStale()) {
         processingRef.current = false;
         setProcessing(false);
         setAiProgress('');
@@ -863,6 +809,7 @@ function BackgroundTool() {
     setErrorMsg('');
     setAiProgress('');
     setProcessing(false);
+    setPreparingModel(false);
   };
 
   const startOver = (e: React.MouseEvent) => {
@@ -889,9 +836,10 @@ function BackgroundTool() {
         </div>
         <div className="space-y-4">
           {!removed ? <>
-            <div className="p-3 rounded-xl bg-primary/5 text-xs text-muted leading-relaxed"><MousePointer2 className="w-4 h-4 text-primary mb-2" />Our AI model isolates the subject (person, product, object) and removes the background — just like remove.bg. First run downloads the model (~40 MB), subsequent runs are instant.</div>
+            <div className="p-3 rounded-xl bg-primary/5 text-xs text-muted leading-relaxed"><MousePointer2 className="w-4 h-4 text-primary mb-2" />Our AI model isolates the subject (person, product, object) and removes the background — just like remove.bg. First run downloads the model (~40 MB), subsequent runs are faster.</div>
             {processing && aiProgress && <div aria-live="polite" className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-3"><RefreshCw className="w-5 h-5 text-primary animate-spin-slow shrink-0" /><span className="text-sm font-semibold text-primary">{aiProgress}</span></div>}
             {errorMsg && <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2 text-sm text-rose-500"><AlertCircle className="w-4 h-4 shrink-0" />{errorMsg}</div>}
+            {preparingModel && !processing && <p className="text-xs text-muted text-center">Preparing AI model...</p>}
             <button type="button" onClick={removeBackground} disabled={processing} className="btn-primary w-full justify-center">{processing ? <RefreshCw className="w-4 h-4 animate-spin-slow" /> : <Wand2 className="w-4 h-4" />}{processing ? 'Removing...' : 'Remove background'}</button>
           </> : <>
             <div>
@@ -913,12 +861,12 @@ function BackgroundTool() {
         </div>
       </div>
     )}
-      <InfoSection title="How background removal works"><p>PhotoTools uses an AI model called IS-Net (Image Segmentation Network) that runs directly in your browser via WebAssembly. The model analyzes the image and identifies the foreground subject — a person, product, or object — then produces a transparency mask that separates the subject from the background.</p><p>On first use, the model file (about 40 MB) is downloaded and cached by your browser. Subsequent uses load from cache, making them much faster. All processing happens on your device CPU.</p></InfoSection>
+      <InfoSection title="How background removal works"><p>PhotoTools uses an AI model called IS-Net (Image Segmentation Network) that runs directly in your browser via WebAssembly or WebGPU when available. The model analyzes the image and identifies the foreground subject — a person, product, or object — then produces a transparency mask that separates the subject from the background.</p><p>On first use, the model file (about 40 MB) is downloaded and cached by your browser. Subsequent uses load from cache, making them much faster. Processing automatically uses your device's GPU when supported, with a CPU fallback for compatibility.</p></InfoSection>
       <InfoSection title="Transparent PNG and background replacement"><p>After removing the background, you can download the result as a transparent PNG, or apply a new background. Choose from preset colors, a custom color, or upload your own background image. The result is composited on a canvas and downloaded as a PNG file.</p></InfoSection>
       <InfoSection title="Supported use cases"><p>Creating product photos with clean white backgrounds for e-commerce, removing backgrounds from portraits for ID photos, preparing images for presentations with custom colored backgrounds, and creating transparent overlays for graphic design projects.</p></InfoSection>
-      <InfoSection title="Limitations"><p>The AI model works best with clear foreground subjects and distinct backgrounds. Very complex images with multiple subjects, hair or fur with fine detail, or backgrounds similar in color to the subject may produce less precise results. Large images are automatically optimized before processing — powerful devices can handle up to 1200px, while lower-memory devices use a smaller size for stability. This may slightly reduce edge detail on very high-resolution photos.</p></InfoSection>
+      <InfoSection title="Limitations"><p>The AI model works best with clear foreground subjects and distinct backgrounds. Very complex images with multiple subjects, hair or fur with fine detail, or backgrounds similar in color to the subject may produce less precise results. Large images are automatically optimized before processing — the model processes at 1024px internally, so images are capped at that resolution to save memory. Lower-memory devices use a smaller size for stability.</p></InfoSection>
       <InfoSection title="Privacy"><p>Background removal runs entirely on your device. The AI model is downloaded once and cached by your browser. Your images are never uploaded to any server. The only network request is the initial model download.</p></InfoSection>
-      <FaqList faqs={[['Why does the first run take longer?', 'The first time you use background removal, the browser downloads the AI model file (about 40 MB). This is cached for future use, so subsequent runs are much faster.'], ['Why is the result blurry around the edges?', 'Large images are automatically optimized before processing — up to 1200px on powerful devices, or smaller on lower-memory devices for stability. If your original image is very high resolution, the edges may lose some detail. For best results, use images that are already close to 1200px on the longest edge.'], ['Can I use a custom background image?', 'Yes. After removing the background, upload any image as a new background. The tool will composite your subject onto the uploaded background.'], ['Does background removal work on mobile?', 'Yes, but it may be slower on devices with limited RAM. The model requires about 40 MB of memory to run. If your device struggles, try using a smaller image.']]}/>
+      <FaqList faqs={[['Why does the first run take longer?', 'The first time you use background removal, the browser downloads the AI model file (about 40 MB). This is cached for future use, so subsequent runs are much faster.'], ['Why is the result blurry around the edges?', 'The AI model processes images at 1024x1024 internally. If your original image is very high resolution, the edges may lose some detail. For best results, use images that are already close to 1024px on the longest edge.'], ['Can I use a custom background image?', 'Yes. After removing the background, upload any image as a new background. The tool will composite your subject onto the uploaded background.'], ['Does background removal work on mobile?', 'Yes, but it may be slower on devices with limited RAM. The model requires about 40 MB of memory to run. If your device struggles, try using a smaller image.']]}/>
       <RelatedTools links={[{ label: 'Resize & Compress', to: '/resize', icon: <Maximize2 className="w-4 h-4" /> }, { label: 'Signature Resizer', to: '/signature', icon: <PenIcon /> }, { label: 'Images to PDF', to: '/pdf', icon: <FileText className="w-4 h-4" /> }]} />
   </ToolShell>;
 }

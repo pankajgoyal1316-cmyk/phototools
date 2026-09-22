@@ -10,6 +10,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['lucide-react', 'pdfjs-dist', '@imgly/background-removal'],
+    exclude: ['lucide-react', 'pdfjs-dist', '@imgly/background-removal', 'onnxruntime-web'],
   },
 });
